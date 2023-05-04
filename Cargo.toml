@@ -1,0 +1,13 @@
+[package]
+name = "cvd2img"
+author = "Sergio Lopez <slp@redhat.com>"
+description = "A tool to transform Android Cuttlefish images into QEMU disk images"
+repository = "https://github.com/slp/cvd2img"
+license = "GPL-3.0-or-later"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.2.7", features = [ "derive" ] }
+libparted = "0.1.5"
+tempdir = "0.3"
