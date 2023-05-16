@@ -192,39 +192,9 @@ pub fn create_bootconfig(
     tmp_dir: &str,
     envs: &HashMap<String, String>,
     arch: &Arch,
+    virgl: bool,
 ) -> Result<(), std::io::Error> {
-    let props_x86_64_sw = b"androidboot.hypervisor.protected_vm.supported=0
-androidboot.modem_simulator_ports=9600
-androidboot.lcd_density=320
-androidboot.vendor.audiocontrol.server.port=9410
-androidboot.vendor.audiocontrol.server.cid=3
-androidboot.cuttlefish_config_server_port=6800
-androidboot.vendor.vehiclehal.server.port=9300
-androidboot.vsock_touch_port=7100
-androidboot.fstab_suffix=cf.f2fs.hctr2
-androidboot.vsock_keyboard_port=7000
-androidboot.enable_confirmationui=0
-androidboot.hypervisor.vm.supported=1
-androidboot.serialno=CUTTLEFISHCVD011
-androidboot.setupwizard_mode=DISABLED
-androidboot.cpuvulkan.version=4202496
-androidboot.ddr_size=4915MB
-androidboot.boot_devices=pci0000:00/0000:00:0d.0,pci0000:00/0000:00:0e.0
-androidboot.hardware.angle_feature_overrides_enabled=preferLinearFilterForYUV:mapUnspecifiedColorSpaceToPassThrough
-androidboot.hardware.egl=angle
-androidboot.enable_bootanimation=1
-androidboot.hardware.gralloc=minigbm
-androidboot.vendor.vehiclehal.server.cid=2
-androidboot.hypervisor.version=cf-qemu_cli
-androidboot.hardware.vulkan=pastel
-androidboot.opengles.version=196609
-androidboot.wifi_mac_prefix=5554
-androidboot.vsock_tombstone_port=6600
-androidboot.hardware.hwcomposer=ranchu
-androidboot.serialconsole=0
-";
-
-    let props_aarch64_sw = b"androidboot.hypervisor.protected_vm.supported=0
+    let props_base = b"androidboot.hypervisor.protected_vm.supported=0
 androidboot.modem_simulator_ports=9600
 androidboot.lcd_density=320
 androidboot.vendor.audiocontrol.server.port=9410
@@ -240,12 +210,11 @@ androidboot.serialno=CUTTLEFISHCVD011
 androidboot.setupwizard_mode=DISABLED
 androidboot.cpuvulkan.version=4202496
 androidboot.ddr_size=4915MB
-androidboot.boot_devices=4010000000.pcie
 androidboot.hardware.angle_feature_overrides_enabled=preferLinearFilterForYUV:mapUnspecifiedColorSpaceToPassThrough
-androidboot.hardware.egl=angle
 androidboot.enable_bootanimation=1
 androidboot.hardware.gralloc=minigbm
 androidboot.vendor.vehiclehal.server.cid=2
+androidboot.hypervisor.version=cf-qemu_cli
 androidboot.hardware.vulkan=pastel
 androidboot.opengles.version=196609
 androidboot.wifi_mac_prefix=5554
@@ -253,13 +222,30 @@ androidboot.vsock_tombstone_port=6600
 androidboot.hardware.hwcomposer=ranchu
 androidboot.serialconsole=0
 ";
+    let props_boot_x86_64 =
+        b"androidboot.boot_devices=pci0000:00/0000:00:0d.0,pci0000:00/0000:00:0e.0
+";
+    let props_boot_aarch64 = b"androidboot.boot_devices=4010000000.pcie
+";
+    let props_render_sw = b"androidboot.hardware.egl=angle
+";
+    let props_render_virgl = b"androidboot.hardware.egl=mesa
+androidboot.hardware.hwcomposer.display_finder_mode=drm
+androidboot.hardware.hwcomposer.mode=client
+";
 
     let bootconfig_path = format!("{tmp_dir}/bootconfig");
     let mut f = File::create(bootconfig_path.clone())?;
+    f.write_all(props_base)?;
     match arch {
-        Arch::Aarch64 => f.write_all(props_aarch64_sw)?,
-        Arch::X86_64 => f.write_all(props_x86_64_sw)?,
+        Arch::X86_64 => f.write_all(props_boot_x86_64)?,
+        Arch::Aarch64 => f.write_all(props_boot_aarch64)?,
     };
+    if virgl {
+        f.write_all(props_render_virgl)?;
+    } else {
+        f.write_all(props_render_sw)?;
+    }
     drop(f);
 
     let args = vec![

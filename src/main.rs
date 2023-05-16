@@ -75,6 +75,10 @@ struct Arguments {
     /// Output file for the properties disk image
     #[arg(short, long, value_name = "FILE")]
     props: Option<PathBuf>,
+
+    /// Output file for the virgl variant of the properties disk image
+    #[arg(short, long, value_name = "FILE")]
+    virgl_props: Option<PathBuf>,
 }
 
 fn create_disk_images(args: &Arguments) -> Result<(), Error> {
@@ -86,6 +90,10 @@ fn create_disk_images(args: &Arguments) -> Result<(), Error> {
     let out_props = match &args.props {
         Some(p) => p.clone().into_os_string().into_string().unwrap(),
         None => "properties.img".to_string(),
+    };
+    let out_virgl_props = match &args.virgl_props {
+        Some(p) => p.clone().into_os_string().into_string().unwrap(),
+        None => "properties_virgl.img".to_string(),
     };
     let arch = args.arch.unwrap_or({
         if cfg!(target_arch = "aarch64") {
@@ -114,12 +122,18 @@ fn create_disk_images(args: &Arguments) -> Result<(), Error> {
     println!("Creating persistent components");
     create_uboot(&cvd_dir, &tmp_dir_path, &envs).map_err(Error::Uboot)?;
     create_vbmeta(&cvd_dir, &tmp_dir_path, &envs).map_err(Error::Vbmeta)?;
-    create_bootconfig(&cvd_dir, &tmp_dir_path, &envs, &arch).map_err(Error::Bootconfig)?;
+    create_bootconfig(&cvd_dir, &tmp_dir_path, &envs, &arch, false).map_err(Error::Bootconfig)?;
 
     println!("Creating {out_props} disk image");
     let parts = create_disk_image(&tmp_dir_path, PROPERTIES_COMPONENTS, &out_props)
         .map_err(Error::DiskImage)?;
     create_partitions(parts, &out_props).map_err(Error::Partitions)?;
+
+    create_bootconfig(&cvd_dir, &tmp_dir_path, &envs, &arch, true).map_err(Error::Bootconfig)?;
+    println!("Creating {out_virgl_props} disk image");
+    let parts = create_disk_image(&tmp_dir_path, PROPERTIES_COMPONENTS, &out_virgl_props)
+        .map_err(Error::DiskImage)?;
+    create_partitions(parts, &out_virgl_props).map_err(Error::Partitions)?;
 
     Ok(())
 }
