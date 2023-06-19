@@ -221,7 +221,7 @@ androidboot.hardware.hwcomposer=ranchu
 androidboot.serialconsole=0
 ";
     let props_boot_x86_64 =
-        b"androidboot.boot_devices=pci0000:00/0000:00:0d.0,pci0000:00/0000:00:0e.0
+        b"androidboot.boot_devices=pci0000:00/0000:00:0f.0,pci0000:00/0000:00:10.0
 ";
     let props_boot_aarch64 = b"androidboot.boot_devices=4010000000.pcie
 ";
