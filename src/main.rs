@@ -81,20 +81,15 @@ struct Arguments {
     virgl_props: Option<PathBuf>,
 }
 
-fn create_disk_images(args: &Arguments) -> Result<(), Error> {
-    let cvd_dir = args.cvd_dir.clone().into_os_string().into_string().unwrap();
-    let out_system = match &args.system {
-        Some(s) => s.clone().into_os_string().into_string().unwrap(),
-        None => "system.img".to_string(),
-    };
-    let out_props = match &args.props {
-        Some(p) => p.clone().into_os_string().into_string().unwrap(),
-        None => "properties.img".to_string(),
-    };
-    let out_virgl_props = match &args.virgl_props {
-        Some(p) => p.clone().into_os_string().into_string().unwrap(),
-        None => "properties_virgl.img".to_string(),
-    };
+fn create_disk_images(args: Arguments) -> Result<(), Error> {
+    let cvd_dir = args.cvd_dir.canonicalize().unwrap();
+    let out_system = args.system.unwrap_or_else(|| PathBuf::from("system.img"));
+    let out_props = args
+        .props
+        .unwrap_or_else(|| PathBuf::from("properties.img"));
+    let out_virgl_props = args
+        .virgl_props
+        .unwrap_or_else(|| PathBuf::from("properties_virgl.img"));
     let arch = args.arch.unwrap_or({
         if cfg!(target_arch = "aarch64") {
             Arch::Aarch64
@@ -103,35 +98,35 @@ fn create_disk_images(args: &Arguments) -> Result<(), Error> {
         }
     });
 
-    let mut envs: HashMap<String, String> = HashMap::new();
-    envs.insert("HOME".to_string(), cvd_dir.to_string());
-    envs.insert("ANDROID_TZDATA_ROOT".to_string(), cvd_dir.to_string());
-    envs.insert("ANDROID_ROOT".to_string(), cvd_dir.to_string());
+    let envs = HashMap::from([
+        ("HOME", &cvd_dir),
+        ("ANDROID_TZDATA_ROOT", &cvd_dir),
+        ("ANDROID_ROOT", &cvd_dir),
+    ]);
 
     println!("Transforming sparse images if needed");
     transform_sparse_images(&cvd_dir, &envs).map_err(Error::TransformSparse)?;
 
-    println!("Creating {out_system} disk image");
+    println!("Creating {} disk image", out_system.display());
     let parts =
         create_disk_image(&cvd_dir, SYSTEM_COMPONENTS, &out_system).map_err(Error::DiskImage)?;
     create_partitions(parts, &out_system).map_err(Error::Partitions)?;
 
-    let tmp_dir = TempDir::new("cvd2img").unwrap();
-    let tmp_dir_path = tmp_dir.into_path().into_os_string().into_string().unwrap();
+    let tmp_dir = TempDir::new("cvd2img").unwrap().into_path();
 
     println!("Creating persistent components");
-    create_uboot(&cvd_dir, &tmp_dir_path, &envs).map_err(Error::Uboot)?;
-    create_vbmeta(&cvd_dir, &tmp_dir_path, &envs).map_err(Error::Vbmeta)?;
-    create_bootconfig(&cvd_dir, &tmp_dir_path, &envs, &arch, false).map_err(Error::Bootconfig)?;
+    create_uboot(&cvd_dir, &tmp_dir, &envs).map_err(Error::Uboot)?;
+    create_vbmeta(&cvd_dir, &tmp_dir, &envs).map_err(Error::Vbmeta)?;
+    create_bootconfig(&cvd_dir, &tmp_dir, &envs, &arch, false).map_err(Error::Bootconfig)?;
 
-    println!("Creating {out_props} disk image");
-    let parts = create_disk_image(&tmp_dir_path, PROPERTIES_COMPONENTS, &out_props)
-        .map_err(Error::DiskImage)?;
+    println!("Creating {} disk image", out_props.display());
+    let parts =
+        create_disk_image(&tmp_dir, PROPERTIES_COMPONENTS, &out_props).map_err(Error::DiskImage)?;
     create_partitions(parts, &out_props).map_err(Error::Partitions)?;
 
-    create_bootconfig(&cvd_dir, &tmp_dir_path, &envs, &arch, true).map_err(Error::Bootconfig)?;
-    println!("Creating {out_virgl_props} disk image");
-    let parts = create_disk_image(&tmp_dir_path, PROPERTIES_COMPONENTS, &out_virgl_props)
+    create_bootconfig(&cvd_dir, &tmp_dir, &envs, &arch, true).map_err(Error::Bootconfig)?;
+    println!("Creating {} disk image", out_virgl_props.display());
+    let parts = create_disk_image(&tmp_dir, PROPERTIES_COMPONENTS, &out_virgl_props)
         .map_err(Error::DiskImage)?;
     create_partitions(parts, &out_virgl_props).map_err(Error::Partitions)?;
 
@@ -141,7 +136,7 @@ fn create_disk_images(args: &Arguments) -> Result<(), Error> {
 fn main() {
     let args = Arguments::parse();
 
-    if let Err(e) = create_disk_images(&args) {
+    if let Err(e) = create_disk_images(args) {
         println!("Image creation failed: {e}");
         exit(-1);
     }

@@ -1,5 +1,5 @@
-use std::fs::File;
 use std::io::{Read, Write};
+use std::{fs::File, path::Path};
 
 use libparted::{Device, Disk, DiskType, FileSystemType, Partition, PartitionType};
 
@@ -13,12 +13,12 @@ fn best_block_size(size: u64) -> usize {
     }
 }
 
-pub fn create_disk_image(
-    cvd_dir: &str,
-    components: &[(&str, &str)],
-    out_file: &str,
-) -> std::io::Result<Vec<(String, String, u64)>> {
-    let mut parts: Vec<(String, String, u64)> = Vec::new();
+pub fn create_disk_image<'a>(
+    cvd_dir: &Path,
+    components: &[(&'a str, &'a str)],
+    out_file: &Path,
+) -> std::io::Result<Vec<(&'a str, &'a str, u64)>> {
+    let mut parts = Vec::new();
     let mut out = File::create(out_file)?;
 
     let zeroes = vec![0; 20480];
@@ -42,7 +42,7 @@ pub fn create_disk_image(
             }
             size
         } else {
-            let mut src = File::open(format!("{cvd_dir}/{image}"))?;
+            let mut src = File::open(cvd_dir.join(image))?;
             let metadata = src.metadata()?;
             let size = metadata.len();
             println!("image: {image} len={size}");
@@ -58,7 +58,7 @@ pub fn create_disk_image(
             }
             size
         };
-        parts.push((image.to_string(), name.to_string(), size));
+        parts.push((*image, *name, size));
     }
 
     // Space reserved for GPT footer
@@ -68,8 +68,8 @@ pub fn create_disk_image(
 }
 
 pub fn create_partitions(
-    parts: Vec<(String, String, u64)>,
-    out_file: &str,
+    parts: Vec<(&str, &str, u64)>,
+    out_file: &Path,
 ) -> Result<(), std::io::Error> {
     let mut dev = Device::new(out_file)?;
     let mut disk = Disk::new_fresh(&mut dev, DiskType::get("gpt").unwrap())?;
@@ -88,7 +88,7 @@ pub fn create_partitions(
             start_sector + len - 1,
         )
         .and_then(|mut part| {
-            part.set_name(&p.1).unwrap();
+            part.set_name(p.1).unwrap();
             disk.add_partition(&mut part, &constraint)
         })?;
 
