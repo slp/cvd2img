@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions},
-    io::{Read, Seek, SeekFrom, Write},
+    io::{self, Read, Seek, SeekFrom, Write},
     process::Command,
 };
 
@@ -15,6 +15,38 @@ pub enum Arch {
     Aarch64,
 }
 
+fn run_command(cvd_dir: &str, name: &str, args: Vec<String>, envs: &HashMap<String, String>) {
+    match Command::new(format!("{cvd_dir}/bin/{name}"))
+        .args(&args)
+        .envs(envs)
+        .stderr(std::process::Stdio::inherit())
+        .output()
+    {
+        Ok(output) => {
+            if !output.status.success() {
+                let code_info = match output.status.code() {
+                    None => String::from(""),
+                    Some(code) => format!(" code {code}"),
+                };
+                println!("{name} exited with failure{code_info}");
+                io::stdout().write_all(&output.stdout).unwrap();
+                io::stderr().write_all(&output.stderr).unwrap();
+                io::stdout().flush().unwrap();
+                io::stderr().flush().unwrap();
+                std::process::exit(-1);
+            }
+        }
+        Err(err) => {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                println!("Can't find {name} in {cvd_dir}");
+            } else {
+                println!("Error executing {name}: {}", err);
+            }
+            std::process::exit(-1);
+        }
+    };
+}
+
 fn call_simg2img(
     cvd_dir: &str,
     envs: &HashMap<String, String>,
@@ -24,22 +56,7 @@ fn call_simg2img(
     let tmp = format!("{cvd_dir}/{image}.tmp");
     let args = vec![src.clone(), tmp.clone()];
 
-    match Command::new(format!("{cvd_dir}/bin/simg2img"))
-        .args(&args)
-        .envs(envs)
-        .stderr(std::process::Stdio::inherit())
-        .output()
-    {
-        Ok(output) => output,
-        Err(err) => {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                println!("Can't find simg2img in {cvd_dir}");
-            } else {
-                println!("Error executing simg2img: {}", err);
-            }
-            std::process::exit(-1);
-        }
-    };
+    run_command(cvd_dir, "simg2img", args, envs);
 
     std::fs::rename(tmp, src)
 }
@@ -89,22 +106,7 @@ pub fn create_uboot(
     f.write_all(uboot_env_input_data)?;
     drop(f);
 
-    match Command::new(format!("{cvd_dir}/bin/mkenvimage_slim"))
-        .args(&args)
-        .envs(envs)
-        .stderr(std::process::Stdio::inherit())
-        .output()
-    {
-        Ok(output) => output,
-        Err(err) => {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                println!("Can't find mkenvimage_slim in {cvd_dir}");
-            } else {
-                println!("Error executing mkenvimage_slim: {}", err);
-            }
-            std::process::exit(-1);
-        }
-    };
+    run_command(cvd_dir, "mkenvimage_slim", args, envs);
 
     let args = vec![
         "add_hash_footer".to_string(),
@@ -120,22 +122,7 @@ pub fn create_uboot(
         "SHA256_RSA4096".to_string(),
     ];
 
-    match Command::new(format!("{cvd_dir}/bin/avbtool"))
-        .args(&args)
-        .envs(envs)
-        .stderr(std::process::Stdio::inherit())
-        .output()
-    {
-        Ok(output) => output,
-        Err(err) => {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                println!("Can't find avbtool in {cvd_dir}");
-            } else {
-                println!("Error executing avbtool: {}", err);
-            }
-            std::process::exit(-1);
-        }
-    };
+    run_command(cvd_dir, "avbtool", args, envs);
 
     Ok(())
 }
@@ -161,22 +148,7 @@ pub fn create_vbmeta(
         "SHA256_RSA4096".to_string(),
     ];
 
-    match Command::new(format!("{cvd_dir}/bin/avbtool"))
-        .args(&args)
-        .envs(envs)
-        .stderr(std::process::Stdio::inherit())
-        .output()
-    {
-        Ok(output) => output,
-        Err(err) => {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                println!("Can't find avbtool in {cvd_dir}");
-            } else {
-                println!("Error executing avbtool: {}", err);
-            }
-            std::process::exit(-1);
-        }
-    };
+    run_command(cvd_dir, "avbtool", args, envs);
 
     let mut f = OpenOptions::new().write(true).open(vbmeta_path)?;
     let metdata = f.metadata()?;
@@ -260,22 +232,7 @@ androidboot.hardware.hwcomposer.mode=client
         "SHA256_RSA4096".to_string(),
     ];
 
-    match Command::new(format!("{cvd_dir}/bin/avbtool"))
-        .args(&args)
-        .envs(envs)
-        .stderr(std::process::Stdio::inherit())
-        .output()
-    {
-        Ok(output) => output,
-        Err(err) => {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                println!("Can't find avbtool in {cvd_dir}");
-            } else {
-                println!("Error executing avbtool: {}", err);
-            }
-            std::process::exit(-1);
-        }
-    };
+    run_command(cvd_dir, "avbtool", args, envs);
 
     Ok(())
 }
