@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions},
-    io::{Read, Seek, SeekFrom, Write},
+    io::{self, Read, Seek, SeekFrom, Write},
     process::Command,
 };
 
@@ -22,7 +22,20 @@ fn run_command(cvd_dir: &str, name: &str, args: Vec<String>, envs: &HashMap<Stri
         .stderr(std::process::Stdio::inherit())
         .output()
     {
-        Ok(_output) => {}
+        Ok(output) => {
+            if !output.status.success() {
+                let code_info = match output.status.code() {
+                    None => String::from(""),
+                    Some(code) => format!(" code {code}"),
+                };
+                println!("{name} exited with failure{code_info}");
+                io::stdout().write_all(&output.stdout).unwrap();
+                io::stderr().write_all(&output.stderr).unwrap();
+                io::stdout().flush().unwrap();
+                io::stderr().flush().unwrap();
+                std::process::exit(-1);
+            }
+        }
         Err(err) => {
             if err.kind() == std::io::ErrorKind::NotFound {
                 println!("Can't find {name} in {cvd_dir}");
