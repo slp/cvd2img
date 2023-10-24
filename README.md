@@ -9,6 +9,7 @@ used with QEMU (and other VMMs).
 
 - **parted** headers and libraries (libparted-dev in Debian, parted-devel in Fedora)
 - **clang** headers and libraries (libclang-dev in Debian, clang-devel in Fedora)
+- **openssl** runtime dependency used by avbtool
 - The Rust Toolchain
 
 ### Generating the executable

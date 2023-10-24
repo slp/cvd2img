@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     fs::{File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
+    path::{Path, PathBuf},
     process::Command,
 };
 
@@ -16,16 +17,16 @@ pub enum Arch {
 }
 
 fn call_simg2img(
-    cvd_dir: &str,
-    envs: &HashMap<String, String>,
+    cvd_dir: &Path,
+    envs: &HashMap<&str, &PathBuf>,
     image: &str,
 ) -> Result<(), std::io::Error> {
-    let src = format!("{cvd_dir}/{image}");
-    let tmp = format!("{cvd_dir}/{image}.tmp");
-    let args = vec![src.clone(), tmp.clone()];
+    let src = cvd_dir.join(image);
+    let tmp = src.with_extension("tmp");
 
-    match Command::new(format!("{cvd_dir}/bin/simg2img"))
-        .args(&args)
+    match Command::new(cvd_dir.join("bin/simg2img"))
+        .arg(&src)
+        .arg(&tmp)
         .envs(envs)
         .stderr(std::process::Stdio::inherit())
         .output()
@@ -33,9 +34,9 @@ fn call_simg2img(
         Ok(output) => output,
         Err(err) => {
             if err.kind() == std::io::ErrorKind::NotFound {
-                println!("Can't find simg2img in {cvd_dir}");
+                println!("Can't find simg2img in {}", cvd_dir.display());
             } else {
-                println!("Error executing simg2img: {}", err);
+                println!("Error executing simg2img: {err}");
             }
             std::process::exit(-1);
         }
@@ -44,8 +45,8 @@ fn call_simg2img(
     std::fs::rename(tmp, src)
 }
 
-fn is_sparse(cvd_dir: &str, image: &str) -> Result<bool, std::io::Error> {
-    let mut f = File::open(format!("{cvd_dir}/{image}"))?;
+fn is_sparse(cvd_dir: &Path, image: &str) -> Result<bool, std::io::Error> {
+    let mut f = File::open(cvd_dir.join(image))?;
     let mut buf: [u8; 4] = [0; 4];
     f.read_exact(&mut buf)?;
 
@@ -57,8 +58,8 @@ fn is_sparse(cvd_dir: &str, image: &str) -> Result<bool, std::io::Error> {
 }
 
 pub fn transform_sparse_images(
-    cvd_dir: &str,
-    envs: &HashMap<String, String>,
+    cvd_dir: &Path,
+    envs: &HashMap<&str, &PathBuf>,
 ) -> Result<(), std::io::Error> {
     let images = vec!["super.img", "userdata.img"];
     for img in images {
@@ -70,27 +71,23 @@ pub fn transform_sparse_images(
 }
 
 pub fn create_uboot(
-    cvd_dir: &str,
-    tmp_dir: &str,
-    envs: &HashMap<String, String>,
+    cvd_dir: &Path,
+    tmp_dir: &Path,
+    envs: &HashMap<&str, &PathBuf>,
 ) -> Result<(), std::io::Error> {
-    let uboot_env_path = format!("{tmp_dir}/uboot_env.img");
+    let uboot_env_path = tmp_dir.join("uboot_env.img");
     let uboot_env_input_data = b"uenvcmd=setenv bootargs \"$cbootargs console=hvc0 earlycon=pl011,mmio32,0x9000000 \" && run bootcmd_android";
-    let uboot_env_input_path = format!("{tmp_dir}/uboot_env_input");
-
-    let args = vec![
-        "-output_path".to_string(),
-        uboot_env_path.clone(),
-        "-input_path".to_string(),
-        uboot_env_input_path.clone(),
-    ];
+    let uboot_env_input_path = tmp_dir.join("uboot_env_input");
 
     let mut f = File::create(&uboot_env_input_path)?;
     f.write_all(uboot_env_input_data)?;
     drop(f);
 
-    match Command::new(format!("{cvd_dir}/bin/mkenvimage_slim"))
-        .args(&args)
+    match Command::new(cvd_dir.join("bin/mkenvimage_slim"))
+        .arg("-output_path")
+        .arg(&uboot_env_path)
+        .arg("-input_path")
+        .arg(uboot_env_input_path)
         .envs(envs)
         .stderr(std::process::Stdio::inherit())
         .output()
@@ -98,30 +95,26 @@ pub fn create_uboot(
         Ok(output) => output,
         Err(err) => {
             if err.kind() == std::io::ErrorKind::NotFound {
-                println!("Can't find mkenvimage_slim in {cvd_dir}");
+                println!("Can't find mkenvimage_slim in {}", cvd_dir.display());
             } else {
-                println!("Error executing mkenvimage_slim: {}", err);
+                println!("Error executing mkenvimage_slim: {err}");
             }
             std::process::exit(-1);
         }
     };
 
-    let args = vec![
-        "add_hash_footer".to_string(),
-        "--image".to_string(),
-        uboot_env_path,
-        "--partition_size".to_string(),
-        "73728".to_string(),
-        "--partition_name".to_string(),
-        "uboot_env".to_string(),
-        "--key".to_string(),
-        format!("{cvd_dir}/etc/cvd_avb_testkey.pem"),
-        "--algorithm".to_string(),
-        "SHA256_RSA4096".to_string(),
-    ];
-
-    match Command::new(format!("{cvd_dir}/bin/avbtool"))
-        .args(&args)
+    match Command::new(cvd_dir.join("bin/avbtool"))
+        .arg("add_hash_footer")
+        .arg("--image")
+        .arg(uboot_env_path)
+        .arg("--partition_size")
+        .arg("73728")
+        .arg("--partition_name")
+        .arg("uboot_env")
+        .arg("--key")
+        .arg(cvd_dir.join("etc/cvd_avb_testkey.pem"))
+        .arg("--algorithm")
+        .arg("SHA256_RSA4096")
         .envs(envs)
         .stderr(std::process::Stdio::inherit())
         .output()
@@ -129,7 +122,7 @@ pub fn create_uboot(
         Ok(output) => output,
         Err(err) => {
             if err.kind() == std::io::ErrorKind::NotFound {
-                println!("Can't find avbtool in {cvd_dir}");
+                println!("Can't find avbtool in {}", cvd_dir.display());
             } else {
                 println!("Error executing avbtool: {}", err);
             }
@@ -141,28 +134,29 @@ pub fn create_uboot(
 }
 
 pub fn create_vbmeta(
-    cvd_dir: &str,
-    tmp_dir: &str,
-    envs: &HashMap<String, String>,
+    cvd_dir: &Path,
+    tmp_dir: &Path,
+    envs: &HashMap<&str, &PathBuf>,
 ) -> Result<(), std::io::Error> {
-    let vbmeta_path = format!("{tmp_dir}/vbmeta.img");
+    let vbmeta_path = tmp_dir.join("vbmeta.img");
+    let cvd_key = cvd_dir
+        .join("etc/cvd.avbpubkey")
+        .into_os_string()
+        .into_string()
+        .unwrap();
 
-    let args = vec![
-        "make_vbmeta_image".to_string(),
-        "--output".to_string(),
-        vbmeta_path.clone(),
-        "--chain_partition".to_string(),
-        format!("uboot_env:1:{cvd_dir}/etc/cvd.avbpubkey"),
-        "--chain_partition".to_string(),
-        format!("bootconfig:2:{cvd_dir}/etc/cvd.avbpubkey"),
-        "--key".to_string(),
-        format!("{cvd_dir}/etc/cvd_avb_testkey.pem"),
-        "--algorithm".to_string(),
-        "SHA256_RSA4096".to_string(),
-    ];
-
-    match Command::new(format!("{cvd_dir}/bin/avbtool"))
-        .args(&args)
+    match Command::new(cvd_dir.join("bin/avbtool"))
+        .arg("make_vbmeta_image")
+        .arg("--output")
+        .arg(&vbmeta_path)
+        .arg("--chain_partition")
+        .arg(format!("uboot_env:1:{cvd_key}"))
+        .arg("--chain_partition")
+        .arg(format!("bootconfig:2:{cvd_key}"))
+        .arg("--key")
+        .arg(cvd_dir.join("etc/cvd_avb_testkey.pem"))
+        .arg("--algorithm")
+        .arg("SHA256_RSA4096")
         .envs(envs)
         .stderr(std::process::Stdio::inherit())
         .output()
@@ -170,7 +164,7 @@ pub fn create_vbmeta(
         Ok(output) => output,
         Err(err) => {
             if err.kind() == std::io::ErrorKind::NotFound {
-                println!("Can't find avbtool in {cvd_dir}");
+                println!("Can't find avbtool in {}", cvd_dir.display());
             } else {
                 println!("Error executing avbtool: {}", err);
             }
@@ -188,9 +182,9 @@ pub fn create_vbmeta(
 }
 
 pub fn create_bootconfig(
-    cvd_dir: &str,
-    tmp_dir: &str,
-    envs: &HashMap<String, String>,
+    cvd_dir: &Path,
+    tmp_dir: &Path,
+    envs: &HashMap<&str, &PathBuf>,
     arch: &Arch,
     virgl: bool,
 ) -> Result<(), std::io::Error> {
@@ -232,8 +226,8 @@ androidboot.hardware.hwcomposer.display_finder_mode=drm
 androidboot.hardware.hwcomposer.mode=client
 ";
 
-    let bootconfig_path = format!("{tmp_dir}/bootconfig");
-    let mut f = File::create(bootconfig_path.clone())?;
+    let bootconfig_path = tmp_dir.join("bootconfig");
+    let mut f = File::create(&bootconfig_path)?;
     f.write_all(props_base)?;
     match arch {
         Arch::X86_64 => f.write_all(props_boot_x86_64)?,
@@ -246,22 +240,18 @@ androidboot.hardware.hwcomposer.mode=client
     }
     drop(f);
 
-    let args = vec![
-        "add_hash_footer".to_string(),
-        "--image".to_string(),
-        bootconfig_path,
-        "--partition_size".to_string(),
-        "73728".to_string(),
-        "--partition_name".to_string(),
-        "bootconfig".to_string(),
-        "--key".to_string(),
-        format!("{cvd_dir}/etc/cvd_avb_testkey.pem"),
-        "--algorithm".to_string(),
-        "SHA256_RSA4096".to_string(),
-    ];
-
-    match Command::new(format!("{cvd_dir}/bin/avbtool"))
-        .args(&args)
+    match Command::new(cvd_dir.join("bin/avbtool"))
+        .arg("add_hash_footer")
+        .arg("--image")
+        .arg(bootconfig_path)
+        .arg("--partition_size")
+        .arg("73728")
+        .arg("--partition_name")
+        .arg("bootconfig")
+        .arg("--key")
+        .arg(cvd_dir.join("etc/cvd_avb_testkey.pem"))
+        .arg("--algorithm")
+        .arg("SHA256_RSA4096")
         .envs(envs)
         .stderr(std::process::Stdio::inherit())
         .output()
@@ -269,7 +259,7 @@ androidboot.hardware.hwcomposer.mode=client
         Ok(output) => output,
         Err(err) => {
             if err.kind() == std::io::ErrorKind::NotFound {
-                println!("Can't find avbtool in {cvd_dir}");
+                println!("Can't find avbtool in {}", cvd_dir.display());
             } else {
                 println!("Error executing avbtool: {}", err);
             }
