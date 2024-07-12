@@ -200,14 +200,12 @@ androidboot.enable_confirmationui=0
 androidboot.hypervisor.vm.supported=0
 androidboot.serialno=CUTTLEFISHCVD011
 androidboot.setupwizard_mode=DISABLED
-androidboot.cpuvulkan.version=4202496
 androidboot.ddr_size=4915MB
 androidboot.hardware.angle_feature_overrides_enabled=preferLinearFilterForYUV:mapUnspecifiedColorSpaceToPassThrough
 androidboot.enable_bootanimation=1
 androidboot.hardware.gralloc=minigbm
 androidboot.vendor.vehiclehal.server.cid=2
 androidboot.hypervisor.version=cf-qemu_cli
-androidboot.hardware.vulkan=pastel
 androidboot.opengles.version=196609
 androidboot.wifi_mac_prefix=5554
 androidboot.vsock_tombstone_port=6600
@@ -220,10 +218,14 @@ androidboot.serialconsole=0
     let props_boot_aarch64 = b"androidboot.boot_devices=4010000000.pcie
 ";
     let props_render_sw = b"androidboot.hardware.egl=angle
+androidboot.hardware.vulkan=pastel
+androidboot.cpuvulkan.version=4202496
 ";
-    let props_render_virgl = b"androidboot.hardware.egl=mesa
+    let props_render_virgl = b"androidboot.hardware.egl=emulation
 androidboot.hardware.hwcomposer.display_finder_mode=drm
-androidboot.hardware.hwcomposer.mode=client
+androidboot.hardware.vulkan=ranchu
+androidboot.hardware.gltransport=virtio-gpu-asg
+androidboot.cpuvulkan.version=0
 ";
 
     let bootconfig_path = tmp_dir.join("bootconfig");
