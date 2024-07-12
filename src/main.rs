@@ -26,8 +26,6 @@ const SYSTEM_COMPONENTS: &[(&str, &str)] = &[
     ("vbmeta_system.img", "vbmeta_system_b"),
     ("vbmeta_vendor_dlkm.img", "vbmeta_vendor_dlkm_a"),
     ("vbmeta_vendor_dlkm.img", "vbmeta_vendor_dlkm_b"),
-    ("vbmeta_system_dlkm.img", "vbmeta_system_dlkm_a"),
-    ("vbmeta_system_dlkm.img", "vbmeta_system_dlkm_b"),
     ("super.img", "super"),
     ("userdata.img", "userdata"),
     ("blank:67108864", "metadata"),
